@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">IcvicApp</string>
+    <string name="begin_speak">말하기</string>
+    <string name="listening">듣는중</string>
 </resources>

@@ -1,48 +1,128 @@
 package kr.osam.icvic.app;
 
+import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Environment;
+import android.os.Handler;
+import android.os.Message;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+
+import com.naver.speech.clientapi.SpeechRecognitionResult;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import kr.osam.icvic.app.utils.AudioWriterPCM;
+
 public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_ENABLE_BT = 10; // 블루투스 활성화 상태
+    private static final int REQUEST_RECORD_AUDIO_PERMISSION = 200;
+    private static final String TAG = MainActivity.class.getSimpleName();
+    private static final String CLIENT_ID = "txj1wxtmhg";
+
+    // Requesting permission to RECORD_AUDIO
+    private boolean permissionToRecordAccepted = false;
+    private String [] permissions = { Manifest.permission.RECORD_AUDIO };
+
     private BluetoothAdapter mBluetoothAdapter;
     private Set<BluetoothDevice> mDevices;
     private BluetoothDevice mBluetoothDevice;
     private BluetoothSocket mBluetoothSocket = null;
     private OutputStream mOutputStream = null;
 
+    private RecognitionHandler mHandler;
+    private NaverRecognizer mNaverRecognizer;
+    private AudioWriterPCM mWriter;
+    private String mResult;
+
     private TextView mTvStatus;
-    private TextView mEtMessage;
-    private Button mBtnSendMessage;
+    private TextView mTvSTTResult;
+    private Button mBtnStartSTT;
+
+    private void handleMessage(Message msg) {
+        switch (msg.what) {
+            case R.id.clientReady:
+                // 음성인식 준비 가능
+                mTvSTTResult.setText("Clova Connected");
+                mWriter = new AudioWriterPCM(Environment.getExternalStorageDirectory().getAbsolutePath() + "/NaverSpeechTest");
+                mWriter.open("Test");
+                break;
+            case R.id.audioRecording:
+                mWriter.write((short[]) msg.obj);
+                break;
+            case R.id.partialResult:
+                mResult = (String) (msg.obj);
+                mTvSTTResult.setText(mResult);
+                break;
+            case R.id.finalResult: // 최종 인식 결과
+                SpeechRecognitionResult speechRecognitionResult = (SpeechRecognitionResult) msg.obj;
+                List<String> results = speechRecognitionResult.getResults();
+                mResult = String.format("%s\n", results.get(0));
+                mTvSTTResult.setText(mResult);
+                sendData(mResult);
+                break;
+            case R.id.recognitionError:
+                if (mWriter != null) mWriter.close();
+                mResult = "Error code : " + msg.obj.toString();
+                mTvSTTResult.setText(mResult);
+                mBtnStartSTT.setText(R.string.begin_speak);
+                mBtnStartSTT.setEnabled(true);
+                break;
+            case R.id.clientInactive:
+                if (mWriter != null) mWriter.close();
+                mBtnStartSTT.setText(R.string.begin_speak);
+                mBtnStartSTT.setEnabled(true);
+                break;
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        switch (requestCode){
+            case REQUEST_RECORD_AUDIO_PERMISSION:
+                permissionToRecordAccepted  = grantResults[0] == PackageManager.PERMISSION_GRANTED;
+                break;
+        }
+        if (!permissionToRecordAccepted ) finish();
+
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION);
+
         // View settings
         mTvStatus = (TextView) findViewById(R.id.tv_bt_status);
-        mEtMessage = (EditText) findViewById(R.id.et_message);
-        mBtnSendMessage = (Button) findViewById(R.id.btn_send_msg);
+        mTvSTTResult = (TextView) findViewById(R.id.tv_stt_result);
+        mBtnStartSTT = (Button) findViewById(R.id.btn_start_stt);
+
+        // Naver Clova STT
+        mHandler = new RecognitionHandler(this);
+        mNaverRecognizer = new NaverRecognizer(this, mHandler, CLIENT_ID);
 
         // Activate Bluetooth
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -58,13 +138,42 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // Event handler
-        mBtnSendMessage.setOnClickListener(new View.OnClickListener() {
+        mBtnStartSTT.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                sendData(mEtMessage.getText().toString());
-                mEtMessage.setText("");
-            }
+                if(!mNaverRecognizer.getSpeechRecognizer().isRunning()) {
+                    mResult = "";
+                    mTvSTTResult.setText("Connecting...");
+                    mBtnStartSTT.setText(R.string.listening);
+                    mNaverRecognizer.recognize();
+                } else {
+                    Log.d(TAG, "stop and wait Final Result");
+                    mBtnStartSTT.setEnabled(false);
+                    mNaverRecognizer.getSpeechRecognizer().stop();
+                }
+           }
         });
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mNaverRecognizer.getSpeechRecognizer().initialize();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mResult = "";
+        mTvSTTResult.setText("");
+        mBtnStartSTT.setText(R.string.begin_speak);
+        mBtnStartSTT.setEnabled(true);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mNaverRecognizer.getSpeechRecognizer().release();
     }
 
     @Override
@@ -74,6 +183,21 @@ public class MainActivity extends AppCompatActivity {
             case REQUEST_ENABLE_BT:
                 if(resultCode == RESULT_OK) selectBluetoothDevice();
                 else mTvStatus.setText("블루투스 OFF");
+        }
+    }
+
+    // Declare handler for handling SpeechRecognizer thread's Messages.
+    static class RecognitionHandler extends Handler {
+        private final WeakReference<MainActivity> mActivity;
+        RecognitionHandler(MainActivity activity) {
+            mActivity = new WeakReference<MainActivity>(activity);
+        }
+        @Override
+        public void handleMessage(Message msg) {
+            MainActivity activity = mActivity.get();
+            if (activity != null) {
+                activity.handleMessage(msg);
+            }
         }
     }
 
