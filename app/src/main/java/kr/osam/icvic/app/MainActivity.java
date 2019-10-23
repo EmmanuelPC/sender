@@ -1,4 +1,4 @@
-package com.example.icvicapp;
+package kr.osam.icvic.app;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
