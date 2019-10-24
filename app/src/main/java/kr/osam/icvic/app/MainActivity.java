@@ -1,6 +1,9 @@
 package kr.osam.icvic.app;
 
 import android.Manifest;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
@@ -13,7 +16,8 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 import android.view.View;
-import android.widget.Button;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -57,13 +61,14 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView mTvStatus;
     private TextView mTvSTTResult;
-    private Button mBtnStartSTT;
+    private TextView mTvSTTHint;
+    private ImageButton mBtnStartSTT;
 
     private void handleMessage(Message msg) {
         switch (msg.what) {
             case R.id.clientReady:
                 // 음성인식 준비 가능
-                mTvSTTResult.setText("Clova Connected");
+                mTvSTTHint.setText(R.string.stt_ready);
                 mWriter = new AudioWriterPCM(Environment.getExternalStorageDirectory().getAbsolutePath() + "/NaverSpeechTest");
                 mWriter.open("Test");
                 break;
@@ -77,20 +82,20 @@ public class MainActivity extends AppCompatActivity {
             case R.id.finalResult: // 최종 인식 결과
                 SpeechRecognitionResult speechRecognitionResult = (SpeechRecognitionResult) msg.obj;
                 List<String> results = speechRecognitionResult.getResults();
-                mResult = String.format("%s\n", results.get(0));
+                mResult = results.get(0);
                 mTvSTTResult.setText(mResult);
+                setAnimation(false).start();
                 sendData(mResult);
+                mTvSTTHint.setText(R.string.stt_success);
                 break;
             case R.id.recognitionError:
                 if (mWriter != null) mWriter.close();
-                mResult = "Error code : " + msg.obj.toString();
-                mTvSTTResult.setText(mResult);
-                mBtnStartSTT.setText(R.string.begin_speak);
+                mTvSTTHint.setText("에러가 발생했습니다 ERROR " + msg.obj.toString());
                 mBtnStartSTT.setEnabled(true);
                 break;
             case R.id.clientInactive:
                 if (mWriter != null) mWriter.close();
-                mBtnStartSTT.setText(R.string.begin_speak);
+                mTvSTTHint.setText(R.string.stt_ready);
                 mBtnStartSTT.setEnabled(true);
                 break;
         }
@@ -115,10 +120,11 @@ public class MainActivity extends AppCompatActivity {
 
         ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION);
 
-        // View settings
+        // View binding
         mTvStatus = (TextView) findViewById(R.id.tv_bt_status);
         mTvSTTResult = (TextView) findViewById(R.id.tv_stt_result);
-        mBtnStartSTT = (Button) findViewById(R.id.btn_start_stt);
+        mTvSTTHint = (TextView) findViewById(R.id.tv_stt_hint);
+        mBtnStartSTT = (ImageButton) findViewById(R.id.btn_start_stt);
 
         // Naver Clova STT
         mHandler = new RecognitionHandler(this);
@@ -142,12 +148,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if(!mNaverRecognizer.getSpeechRecognizer().isRunning()) {
+                    // set text value
                     mResult = "";
-                    mTvSTTResult.setText("Connecting...");
-                    mBtnStartSTT.setText(R.string.listening);
+                    mTvSTTResult.setText("");
+                    mTvSTTHint.setText(R.string.stt_progress);
+                    setAnimation(true).start();
                     mNaverRecognizer.recognize();
                 } else {
-                    Log.d(TAG, "stop and wait Final Result");
+                    mTvSTTHint.setText(R.string.stt_stop);
                     mBtnStartSTT.setEnabled(false);
                     mNaverRecognizer.getSpeechRecognizer().stop();
                 }
@@ -166,7 +174,7 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         mResult = "";
         mTvSTTResult.setText("");
-        mBtnStartSTT.setText(R.string.begin_speak);
+        mTvSTTHint.setText(R.string.stt_ready);
         mBtnStartSTT.setEnabled(true);
     }
 
@@ -263,5 +271,24 @@ public class MainActivity extends AppCompatActivity {
         } catch(Exception e) {
             e.printStackTrace();
         }
+    }
+    public AnimatorSet setAnimation(boolean isListening) {
+        AnimatorSet animatorSet = new AnimatorSet();
+        animatorSet.setInterpolator(new AccelerateDecelerateInterpolator());
+        animatorSet.setDuration(600);
+        if (isListening) {
+            ObjectAnimator translateUp = ObjectAnimator.ofFloat(mBtnStartSTT, "translationY", 0f, -500f);
+            ObjectAnimator scaleUp = ObjectAnimator.ofPropertyValuesHolder(mBtnStartSTT,
+                    PropertyValuesHolder.ofFloat("scaleX", 1.25f),
+                    PropertyValuesHolder.ofFloat("scaleY", 1.25f));
+            animatorSet.playTogether(translateUp, scaleUp);
+        } else {
+            ObjectAnimator translateDown = ObjectAnimator.ofFloat(mBtnStartSTT, "translationY", -500f, 0f);
+            ObjectAnimator scaleDown = ObjectAnimator.ofPropertyValuesHolder(mBtnStartSTT,
+                    PropertyValuesHolder.ofFloat("scaleX", 0.8f),
+                    PropertyValuesHolder.ofFloat("scaleY", 0.8f));
+            animatorSet.playTogether(translateDown, scaleDown);
+        }
+        return animatorSet;
     }
 }

@@ -1,5 +1,8 @@
 <resources>
     <string name="app_name">IcvicApp</string>
-    <string name="begin_speak">말하기</string>
-    <string name="listening">듣는중</string>
+    <string name="stt_loading">클로바가 준비중입니다.</string>
+    <string name="stt_ready">앞차에게 메세지를 전해보세요.</string>
+    <string name="stt_progress">듣는 중입니다.</string>
+    <string name="stt_success">메세지를 전했습니다!</string>
+    <string name="stt_stop">음성인식을 중지했습니다.</string>
 </resources>
