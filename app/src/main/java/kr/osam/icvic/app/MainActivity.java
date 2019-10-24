@@ -18,7 +18,11 @@ import android.os.Message;
 import android.util.Log;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
+import android.view.animation.LinearInterpolator;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -63,6 +67,7 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView mTvSTTResult;
     private TextView mTvSTTHint;
+    private ImageView mIvLights;
     private ImageButton mBtnStartSTT;
     private ImageButton mBtnConnectBT;
 
@@ -87,9 +92,16 @@ public class MainActivity extends AppCompatActivity {
                 List<String> results = speechRecognitionResult.getResults();
                 mResult = results.get(0);
                 mTvSTTResult.setText(String.format("\"%s\"", mResult));
-                setAnimation(false).start();
                 sendData(mResult);
+                setAnimation(false).start();
                 mTvSTTHint.setText(R.string.stt_success);
+                // Blink headlights
+                Animation blinkAnimation = new AlphaAnimation(1, 0);
+                blinkAnimation.setDuration(200);
+                blinkAnimation.setInterpolator(new LinearInterpolator());
+                blinkAnimation.setRepeatCount(9);
+                blinkAnimation.setRepeatMode(Animation.REVERSE);
+                mIvLights.startAnimation(blinkAnimation);
                 break;
             case R.id.recognitionError:
                 String errNo = msg.obj.toString();
@@ -106,9 +118,10 @@ public class MainActivity extends AppCompatActivity {
                             @Override
                             public void run() {
                                 mTvSTTHint.setText(R.string.stt_ready);
+                                mTvSTTResult.setText("");
                             }
                         },
-                        1200
+                        1600
                     );
                 }
                 mBtnStartSTT.setEnabled(true);
@@ -138,6 +151,7 @@ public class MainActivity extends AppCompatActivity {
         // View binding
         mTvSTTResult = (TextView) findViewById(R.id.tv_stt_result);
         mTvSTTHint = (TextView) findViewById(R.id.tv_stt_hint);
+        mIvLights = (ImageView) findViewById(R.id.iv_lights);
         mBtnStartSTT = (ImageButton) findViewById(R.id.btn_start_stt);
         mBtnConnectBT = (ImageButton) findViewById(R.id.btn_connect_bt);
 
