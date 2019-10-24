@@ -2,6 +2,7 @@ package kr.osam.icvic.app;
 
 import android.Manifest;
 import android.animation.AnimatorSet;
+import android.animation.ArgbEvaluator;
 import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
 import android.bluetooth.BluetoothAdapter;
@@ -19,6 +20,7 @@ import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.ImageButton;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -59,7 +61,6 @@ public class MainActivity extends AppCompatActivity {
     private AudioWriterPCM mWriter;
     private String mResult;
 
-    private TextView mTvStatus;
     private TextView mTvSTTResult;
     private TextView mTvSTTHint;
     private ImageButton mBtnStartSTT;
@@ -73,6 +74,7 @@ public class MainActivity extends AppCompatActivity {
                 mWriter.open("Test");
                 break;
             case R.id.audioRecording:
+                mTvSTTHint.setText(R.string.stt_progress);
                 mWriter.write((short[]) msg.obj);
                 break;
             case R.id.partialResult:
@@ -89,13 +91,25 @@ public class MainActivity extends AppCompatActivity {
                 mTvSTTHint.setText(R.string.stt_success);
                 break;
             case R.id.recognitionError:
+                String errNo = msg.obj.toString();
                 if (mWriter != null) mWriter.close();
-                mTvSTTHint.setText("에러가 발생했습니다 ERROR " + msg.obj.toString());
+                mTvSTTHint.setText("에러가 발생했습니다 ERROR " + errNo);
                 mBtnStartSTT.setEnabled(true);
                 break;
             case R.id.clientInactive:
-                if (mWriter != null) mWriter.close();
-                mTvSTTHint.setText(R.string.stt_ready);
+                if (mWriter != null) {
+                    mWriter.close();
+                    // Set Delay
+                    new android.os.Handler().postDelayed(
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                mTvSTTHint.setText(R.string.stt_ready);
+                            }
+                        },
+                        1200
+                    );
+                }
                 mBtnStartSTT.setEnabled(true);
                 break;
         }
@@ -121,7 +135,6 @@ public class MainActivity extends AppCompatActivity {
         ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION);
 
         // View binding
-        mTvStatus = (TextView) findViewById(R.id.tv_bt_status);
         mTvSTTResult = (TextView) findViewById(R.id.tv_stt_result);
         mTvSTTHint = (TextView) findViewById(R.id.tv_stt_hint);
         mBtnStartSTT = (ImageButton) findViewById(R.id.btn_start_stt);
@@ -133,7 +146,7 @@ public class MainActivity extends AppCompatActivity {
         // Activate Bluetooth
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         if (mBluetoothAdapter == null) {
-            mTvStatus.setText("블루투스 사용 불가");
+            Toast.makeText(getApplicationContext(), "블루투스를 지원하지 않습니다.", Toast.LENGTH_LONG).show();
         } else {
             if (mBluetoothAdapter.isEnabled()) {
                 selectBluetoothDevice();
@@ -148,13 +161,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if(!mNaverRecognizer.getSpeechRecognizer().isRunning()) {
+                    Log.d(TAG, "PRESS_BUTTON_TO_START");
                     // set text value
                     mResult = "";
                     mTvSTTResult.setText("");
-                    mTvSTTHint.setText(R.string.stt_progress);
                     setAnimation(true).start();
                     mNaverRecognizer.recognize();
                 } else {
+                    Log.d(TAG, "PRESS_BUTTON_TO_STOP");
                     mTvSTTHint.setText(R.string.stt_stop);
                     mBtnStartSTT.setEnabled(false);
                     mNaverRecognizer.getSpeechRecognizer().stop();
@@ -190,7 +204,7 @@ public class MainActivity extends AppCompatActivity {
         switch(requestCode) {
             case REQUEST_ENABLE_BT:
                 if(resultCode == RESULT_OK) selectBluetoothDevice();
-                else mTvStatus.setText("블루투스 OFF");
+                else Toast.makeText(getApplicationContext(), "블루투스가 꺼져있습니다.", Toast.LENGTH_LONG).show();
         }
     }
 
@@ -210,53 +224,31 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void selectBluetoothDevice() {
-        mTvStatus.setText("블루투스 ON");
         mDevices = mBluetoothAdapter.getBondedDevices();
         int pairedDeviceCount = mDevices.size();
         if (pairedDeviceCount == 0) {
             // 페어링 진행
-            mTvStatus.setText("페이링이 되지 않음");
+            Toast.makeText(getApplicationContext(), "블루투스 페어링을 해야합니다.", Toast.LENGTH_LONG).show();
         } else {
-            // Select Device
-            AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setTitle("블루투스 기기 선택");
-            List<String> list = new ArrayList<>();
-
+            // Connect to BT automatically
             for (BluetoothDevice bluetoothDevice : mDevices) {
-                list.add(bluetoothDevice.getName());
-            }
-
-            // Convert List into CharSequence
-            final CharSequence[] charSequences = list.toArray(new CharSequence[list.size()]);
-            list.toArray(new CharSequence[list.size()]);
-
-            // click event listener
-            builder.setItems(charSequences, new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    connectDevice(charSequences[which].toString());
+                // 사전에 블루투스 이름을 'li-fi'로 설정
+                if (bluetoothDevice.getName().equals("li-fi")) {
+                    connectDevice(bluetoothDevice);
                 }
-            });
-
-            AlertDialog alertDialog = builder.create();
-            alertDialog.show();
+            }
         }
     }
 
-    public void connectDevice(String deviceName) {
-        for (BluetoothDevice device : mDevices) {
-            if (deviceName.equals(device.getName())) {
-                mBluetoothDevice = device;
-                break;
-            }
-        }
+    public void connectDevice(BluetoothDevice device) {
+        mBluetoothDevice = device;
         // Generate UUID
         UUID uuid = java.util.UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
         // Rfcomm 채널을 통해 블루투스 디바이스와 통신하는 소켓 생성
         try {
             mBluetoothSocket = mBluetoothDevice.createRfcommSocketToServiceRecord(uuid);
             mBluetoothSocket.connect();
-            mTvStatus.setText(String.format("연결된 기기: %s", deviceName));
+            Toast.makeText(getApplicationContext(), "기기와 연결되었습니다.", Toast.LENGTH_SHORT).show();
             // 데이터 송신 스트림
             mOutputStream = mBluetoothSocket.getOutputStream();
         } catch(IOException e) {

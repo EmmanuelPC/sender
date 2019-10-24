@@ -9,21 +9,12 @@
     tools:context="kr.osam.icvic.app.MainActivity">
 
     <TextView
-        android:id="@+id/tv_bt_status"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="STATUS"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"/>
-
-    <TextView
         android:id="@+id/tv_stt_result"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text=""
-        android:layout_marginTop="16dp"
         app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tv_bt_status"/>
+        app:layout_constraintTop_toTopOf="parent"/>
 
     <ImageButton
         android:id="@+id/btn_start_stt"
