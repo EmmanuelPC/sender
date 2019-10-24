@@ -64,6 +64,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView mTvSTTResult;
     private TextView mTvSTTHint;
     private ImageButton mBtnStartSTT;
+    private ImageButton mBtnConnectBT;
 
     private void handleMessage(Message msg) {
         switch (msg.what) {
@@ -138,6 +139,7 @@ public class MainActivity extends AppCompatActivity {
         mTvSTTResult = (TextView) findViewById(R.id.tv_stt_result);
         mTvSTTHint = (TextView) findViewById(R.id.tv_stt_hint);
         mBtnStartSTT = (ImageButton) findViewById(R.id.btn_start_stt);
+        mBtnConnectBT = (ImageButton) findViewById(R.id.btn_connect_bt);
 
         // Naver Clova STT
         mHandler = new RecognitionHandler(this);
@@ -147,6 +149,7 @@ public class MainActivity extends AppCompatActivity {
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         if (mBluetoothAdapter == null) {
             Toast.makeText(getApplicationContext(), "블루투스를 지원하지 않습니다.", Toast.LENGTH_LONG).show();
+            mBtnConnectBT.setClickable(false);
         } else {
             if (mBluetoothAdapter.isEnabled()) {
                 selectBluetoothDevice();
@@ -161,19 +164,39 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if(!mNaverRecognizer.getSpeechRecognizer().isRunning()) {
-                    Log.d(TAG, "PRESS_BUTTON_TO_START");
                     // set text value
                     mResult = "";
                     mTvSTTResult.setText("");
                     setAnimation(true).start();
                     mNaverRecognizer.recognize();
                 } else {
-                    Log.d(TAG, "PRESS_BUTTON_TO_STOP");
                     mTvSTTHint.setText(R.string.stt_stop);
                     mBtnStartSTT.setEnabled(false);
                     mNaverRecognizer.getSpeechRecognizer().stop();
                 }
            }
+        });
+
+        mBtnConnectBT.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mBluetoothSocket.isConnected()) {
+                    try {
+                        mBluetoothSocket.close();
+                        Toast.makeText(getApplicationContext(), "연결을 해제했습니다.", Toast.LENGTH_LONG).show();
+                        mBtnConnectBT.setImageResource(R.drawable.bluetooth_inactive);
+                    } catch(IOException e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    if (mBluetoothAdapter.isEnabled()) {
+                        selectBluetoothDevice();
+                    } else {
+                        Intent intent =  new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                        startActivityForResult(intent, REQUEST_ENABLE_BT);
+                    }
+                }
+            }
         });
     }
 
@@ -203,8 +226,12 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
         switch(requestCode) {
             case REQUEST_ENABLE_BT:
-                if(resultCode == RESULT_OK) selectBluetoothDevice();
-                else Toast.makeText(getApplicationContext(), "블루투스가 꺼져있습니다.", Toast.LENGTH_LONG).show();
+                if(resultCode == RESULT_OK) {
+                    selectBluetoothDevice();
+                } else {
+                    Toast.makeText(getApplicationContext(), "블루투스가 꺼져있습니다.", Toast.LENGTH_LONG).show();
+                    mBtnConnectBT.setImageResource(R.drawable.bluetooth_inactive);
+                }
         }
     }
 
@@ -229,14 +256,18 @@ public class MainActivity extends AppCompatActivity {
         if (pairedDeviceCount == 0) {
             // 페어링 진행
             Toast.makeText(getApplicationContext(), "li-fi 기기를 페어링 해야합니다.", Toast.LENGTH_LONG).show();
+            mBtnConnectBT.setImageResource(R.drawable.bluetooth_inactive);
         } else {
             // Connect to BT automatically
             for (BluetoothDevice bluetoothDevice : mDevices) {
                 // 사전에 블루투스 이름을 'li-fi'로 설정
                 if (bluetoothDevice.getName().equals("li-fi")) {
                     connectDevice(bluetoothDevice);
+                    return;
                 }
             }
+            Toast.makeText(getApplicationContext(), "li-fi 기기를 찾을 수 없습니다.", Toast.LENGTH_LONG).show();
+            mBtnConnectBT.setImageResource(R.drawable.bluetooth_inactive);
         }
     }
 
@@ -248,10 +279,13 @@ public class MainActivity extends AppCompatActivity {
         try {
             mBluetoothSocket = mBluetoothDevice.createRfcommSocketToServiceRecord(uuid);
             mBluetoothSocket.connect();
+            mOutputStream = mBluetoothSocket.getOutputStream();
+            mBtnConnectBT.setImageResource(R.drawable.bluetooth_active);
             Toast.makeText(getApplicationContext(), "기기와 연결되었습니다.", Toast.LENGTH_SHORT).show();
             // 데이터 송신 스트림
-            mOutputStream = mBluetoothSocket.getOutputStream();
         } catch(IOException e) {
+            mBtnConnectBT.setImageResource(R.drawable.bluetooth_inactive);
+            Toast.makeText(getApplicationContext(), "연결 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show();
             e.printStackTrace();
         }
     }

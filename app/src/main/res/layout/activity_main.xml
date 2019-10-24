@@ -8,6 +8,16 @@
     android:padding="32dp"
     tools:context="kr.osam.icvic.app.MainActivity">
 
+    <ImageButton
+        android:id="@+id/btn_connect_bt"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/bluetooth_inactive"
+        android:background="@null"
+        android:scaleType="centerInside"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintRight_toRightOf="parent"/>
+
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="108dp"
         android:layout_height="wrap_content"
