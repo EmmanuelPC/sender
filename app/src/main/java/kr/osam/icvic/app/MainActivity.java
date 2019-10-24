@@ -79,13 +79,13 @@ public class MainActivity extends AppCompatActivity {
                 break;
             case R.id.partialResult:
                 mResult = (String) (msg.obj);
-                mTvSTTResult.setText(mResult);
+                mTvSTTResult.setText(String.format("\"%s\"", mResult));
                 break;
             case R.id.finalResult: // 최종 인식 결과
                 SpeechRecognitionResult speechRecognitionResult = (SpeechRecognitionResult) msg.obj;
                 List<String> results = speechRecognitionResult.getResults();
                 mResult = results.get(0);
-                mTvSTTResult.setText(mResult);
+                mTvSTTResult.setText(String.format("\"%s\"", mResult));
                 setAnimation(false).start();
                 sendData(mResult);
                 mTvSTTHint.setText(R.string.stt_success);
@@ -228,7 +228,7 @@ public class MainActivity extends AppCompatActivity {
         int pairedDeviceCount = mDevices.size();
         if (pairedDeviceCount == 0) {
             // 페어링 진행
-            Toast.makeText(getApplicationContext(), "블루투스 페어링을 해야합니다.", Toast.LENGTH_LONG).show();
+            Toast.makeText(getApplicationContext(), "li-fi 기기를 페어링 해야합니다.", Toast.LENGTH_LONG).show();
         } else {
             // Connect to BT automatically
             for (BluetoothDevice bluetoothDevice : mDevices) {
